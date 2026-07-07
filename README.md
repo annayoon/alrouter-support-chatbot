@@ -1,14 +1,18 @@
 # alrouter.ai 고객센터 챗봇
 
-로컬 Ollama(`llama3.2`)로 답변하고, Confluence 위키를 지식 베이스로 참고하며,
+로컬 Ollama로 답변하고, Confluence 위키를 지식 베이스로 참고하며,
 답변 실패/불만/상담원 요청/대화 종료 시 Slack·이메일로 담당자에게 알림을 보내는
 고객센터 챗봇입니다. `public/widget.js`를 `<script>` 태그로 삽입하면 어떤 웹사이트에도 붙일 수 있습니다.
 
 ## 준비
 
-1. Ollama가 로컬에서 실행 중이고 `llama3.2` 모델이 있어야 합니다.
+1. Ollama가 로컬에서 실행 중이고 모델이 있어야 합니다. 운영(서버)은 `qwen2.5:14b`를 씁니다 — `llama3.2`보다
+   한국어 답변 품질/사실 정확도가 눈에 띄게 좋습니다. 로컬 개발 데모용으로는 다운로드가 가벼운 `llama3.2`도
+   괜찮습니다 (`OLLAMA_MODEL`로 전환).
    ```
-   ollama list   # llama3.2가 보이는지 확인
+   ollama pull qwen2.5:14b   # 운영 권장 (약 9GB)
+   # 또는 로컬 데모용 경량 모델
+   ollama pull llama3.2
    ollama serve  # 실행 중이 아니라면
    ```
 2. 의존성 설치
