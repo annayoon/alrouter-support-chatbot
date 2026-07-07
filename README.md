@@ -40,12 +40,19 @@ npm start
 
 ## alrouter.ai에 위젯 삽입
 
+운영 챗봇 서버는 `https://chatbot.alrouter.ai`에 배포되어 있습니다 (Cloudflare Tunnel 경유).
+alrouter.ai 사이트의 공통 템플릿(모든 페이지에 뜨는 곳, 예: 푸터 또는 `</body>` 바로 앞)에
+아래 스크립트 태그 한 줄만 추가하면 됩니다.
+
 ```html
-<script src="https://<서버-도메인>/widget.js" data-api-base="https://<서버-도메인>"></script>
+<script src="https://chatbot.alrouter.ai/widget.js" data-api-base="https://chatbot.alrouter.ai"></script>
 ```
 
-- `data-api-base`는 챗봇 서버가 위젯을 서빙하는 사이트와 다른 도메인일 때 지정합니다 (CORS 설정 필요).
-- 같은 도메인에서 서빙한다면 `data-api-base=""`로 두면 됩니다.
+- `data-api-base`는 챗봇 서버가 위젯을 서빙하는 사이트와 다른 도메인일 때 지정합니다. CORS는
+  `https://alrouter.ai`, `https://www.alrouter.ai`로 이미 허용되어 있습니다 (다른 도메인에서 쓸 경우
+  서버 `.env`의 `CORS_ALLOWED_ORIGINS`에 추가해야 함).
+- 같은 도메인에서 직접 서빙한다면 `data-api-base=""`로 두면 됩니다.
+- 위젯은 프레임워크 의존성이 없는 바닐라 JS라 React/Vue든 정적 HTML이든 그대로 붙습니다.
 
 ## 알림이 발생하는 경우
 
