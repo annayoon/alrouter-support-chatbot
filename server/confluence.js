@@ -1,3 +1,5 @@
+import { embedTexts } from './ollama.js';
+
 const {
   CONFLUENCE_BASE_URL,
   CONFLUENCE_ROOT_PAGE_ID,
@@ -101,6 +103,7 @@ export async function getKnowledgeBaseChunks() {
 
   try {
     const chunks = await fetchSpacePages();
+    await attachEmbeddings(chunks);
     cache = { chunks, fetchedAt: Date.now() };
     return chunks;
   } catch (err) {
@@ -109,24 +112,66 @@ export async function getKnowledgeBaseChunks() {
   }
 }
 
-// Simple keyword-overlap retrieval: score each chunk by how many query tokens it contains.
-export function selectRelevantChunks(chunks, query, topK = 4) {
+// Embeds all chunks in one batch at KB refresh time (every CACHE_TTL, not per
+// request). If the embed model is unavailable the chunks stay embedding-less
+// and retrieval falls back to keyword matching.
+async function attachEmbeddings(chunks) {
+  if (!chunks.length) return;
+  const embeddings = await embedTexts(chunks.map((c) => `${c.title}\n${c.text}`));
+  if (!embeddings) return;
+  chunks.forEach((chunk, i) => { chunk.embedding = embeddings[i]; });
+}
+
+function cosineSimilarity(a, b) {
+  let dot = 0, normA = 0, normB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  return dot / (Math.sqrt(normA) * Math.sqrt(normB) || 1);
+}
+
+// Below this similarity a chunk is considered unrelated to the question, so the
+// server answers deterministically instead of letting the model improvise.
+const MIN_SIMILARITY = 0.4;
+
+// Semantic retrieval via embeddings; falls back to keyword overlap when
+// embeddings are unavailable (embed model not pulled, Ollama down at KB fetch).
+export async function selectRelevantChunks(chunks, query, topK = 4) {
+  if (!chunks.length) return [];
+
+  if (chunks[0].embedding) {
+    const queryEmbeddings = await embedTexts([query]);
+    if (queryEmbeddings) {
+      const scored = chunks
+        .filter((c) => c.embedding)
+        .map((chunk) => ({ chunk, score: cosineSimilarity(queryEmbeddings[0], chunk.embedding) }))
+        .filter((s) => s.score >= MIN_SIMILARITY)
+        .sort((a, b) => b.score - a.score);
+      return scored.slice(0, topK).map((s) => s.chunk);
+    }
+  }
+
+  return selectByKeyword(chunks, query, topK);
+}
+
+// Keyword-overlap fallback: score each chunk by how many query tokens it contains.
+function selectByKeyword(chunks, query, topK) {
   const tokens = query
     .toLowerCase()
     .split(/[\s,.?!:;()[\]"'~]+/)
     .filter((t) => t.length >= 2);
 
-  if (!chunks.length || !tokens.length) return chunks.slice(0, topK);
+  if (!tokens.length) return chunks.slice(0, topK);
 
   const scored = chunks.map((chunk) => {
-    const haystack = chunk.text.toLowerCase();
+    const haystack = (chunk.title + ' ' + chunk.text).toLowerCase();
     const score = tokens.reduce((sum, t) => sum + (haystack.includes(t) ? 1 : 0), 0);
     return { chunk, score };
   });
 
   const matched = scored.filter((s) => s.score > 0).sort((a, b) => b.score - a.score);
-  if (!matched.length) return [];
-
   return matched.slice(0, topK).map((s) => s.chunk);
 }
 

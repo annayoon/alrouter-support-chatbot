@@ -31,15 +31,59 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use(express.static('public'));
 
-// In-memory session store: sessionId -> { history: [{role, content}], alerted: Set<reason> }
+// In-memory session store: sessionId -> { history, alerted, lastActiveAt }
 const sessions = new Map();
+const SESSION_TTL_MS = 30 * 60 * 1000;
+// Stored history is capped so an abandoned-but-active session can't grow unbounded;
+// the model itself only sees the last few turns (see ollama.js).
+const MAX_STORED_HISTORY = 20;
 
 function getSession(sessionId) {
   if (!sessions.has(sessionId)) {
-    sessions.set(sessionId, { history: [], alerted: new Set() });
+    sessions.set(sessionId, { history: [], alerted: new Set(), lastActiveAt: Date.now() });
   }
-  return sessions.get(sessionId);
+  const session = sessions.get(sessionId);
+  session.lastActiveAt = Date.now();
+  return session;
 }
+
+// Widgets closed without calling /session/end would otherwise leak forever.
+setInterval(() => {
+  const cutoff = Date.now() - SESSION_TTL_MS;
+  for (const [id, session] of sessions) {
+    if (session.lastActiveAt < cutoff) sessions.delete(id);
+  }
+}, 10 * 60 * 1000).unref();
+
+// Per-IP sliding-window rate limit. /api/chat drives an LLM call, so even a
+// modest request loop would saturate Ollama without this.
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const RATE_LIMIT_MAX = 15;
+const rateBuckets = new Map();
+
+setInterval(() => {
+  const cutoff = Date.now() - RATE_LIMIT_WINDOW_MS;
+  for (const [ip, bucket] of rateBuckets) {
+    if (bucket.windowStart < cutoff) rateBuckets.delete(ip);
+  }
+}, 5 * 60 * 1000).unref();
+
+function rateLimit(req, res, next) {
+  const ip = req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip;
+  const now = Date.now();
+  let bucket = rateBuckets.get(ip);
+  if (!bucket || now - bucket.windowStart >= RATE_LIMIT_WINDOW_MS) {
+    bucket = { windowStart: now, count: 0 };
+    rateBuckets.set(ip, bucket);
+  }
+  bucket.count += 1;
+  if (bucket.count > RATE_LIMIT_MAX) {
+    return res.status(429).json({ error: 'Too many requests. Please wait a moment.' });
+  }
+  next();
+}
+
+const MAX_MESSAGE_LENGTH = 1000;
 
 async function maybeAlert(session, sessionId, reason, payload) {
   if (session.alerted.has(reason)) return; // throttle: once per session per reason
@@ -55,10 +99,13 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-app.post('/api/chat', async (req, res) => {
+app.post('/api/chat', rateLimit, async (req, res) => {
   const { sessionId: incomingSessionId, message } = req.body || {};
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ error: 'message is required' });
+  }
+  if (message.length > MAX_MESSAGE_LENGTH) {
+    return res.status(400).json({ error: `message must be ${MAX_MESSAGE_LENGTH} characters or fewer` });
   }
 
   const sessionId = incomingSessionId || randomUUID();
@@ -75,7 +122,7 @@ app.post('/api/chat', async (req, res) => {
       reply = topicRule.reply;
     } else {
       const allChunks = await getKnowledgeBaseChunks();
-      const relevantChunks = selectRelevantChunks(allChunks, message);
+      const relevantChunks = await selectRelevantChunks(allChunks, message);
 
       // KB is set up but nothing matches this question — don't let the model guess, answer deterministically.
       noKnowledgeMatch = isConfluenceConfigured() && relevantChunks.length === 0;
@@ -91,6 +138,9 @@ app.post('/api/chat', async (req, res) => {
 
     session.history.push({ role: 'user', content: message });
     session.history.push({ role: 'assistant', content: reply });
+    if (session.history.length > MAX_STORED_HISTORY) {
+      session.history.splice(0, session.history.length - MAX_STORED_HISTORY);
+    }
 
     if (topicRule) {
       await maybeAlert(session, sessionId, AlertReason.TOPIC_RULE_MATCHED, { userMessage: message, botReply: reply });

@@ -13,8 +13,11 @@
    ollama pull gemma4   # 운영 권장 (약 9.6GB)
    # 또는 로컬 데모용 경량 모델
    ollama pull llama3.2
+   ollama pull bge-m3   # 지식 베이스 의미 검색용 임베딩 모델 (약 1.2GB, 권장)
    ollama serve  # 실행 중이 아니라면
    ```
+   `bge-m3`가 없으면 임베딩 검색 대신 키워드 검색으로 자동 폴백합니다
+   (`OLLAMA_EMBED_MODEL` 환경 변수로 다른 임베딩 모델 지정 가능).
 2. 의존성 설치
    ```
    npm install
