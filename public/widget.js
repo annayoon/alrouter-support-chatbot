@@ -118,7 +118,9 @@
 
   sendBtn.addEventListener('click', sendMessage);
   input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') sendMessage();
+    // isComposing / keyCode 229 guards against Enter being used to confirm
+    // an IME candidate (Korean/Japanese/Chinese) instead of submitting.
+    if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) sendMessage();
   });
 
   window.addEventListener('pagehide', () => {
