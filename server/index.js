@@ -8,6 +8,7 @@ import { detectHumanRequest, detectNegativeSentiment, detectNoAnswer } from './d
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '127.0.0.1';
 
 const NO_MATCH_REPLY = '문의하신 내용은 정확한 답변을 위해 담당자에게 전달했습니다. 확인 후 안내드리겠습니다.';
 
@@ -114,8 +115,8 @@ app.post('/api/session/end', async (req, res) => {
   res.status(204).end();
 });
 
-app.listen(PORT, () => {
-  console.log(`alrouter.ai support chatbot server listening on http://localhost:${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`alrouter.ai support chatbot server listening on http://${HOST}:${PORT}`);
   console.log(`Confluence KB configured: ${isConfluenceConfigured()}`);
   console.log(`Alerting configured: ${isAlertingConfigured()}`);
 });
