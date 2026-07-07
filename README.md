@@ -20,6 +20,9 @@
    cp .env.example .env
    ```
    - `CONFLUENCE_*`: 비워두면 지식 베이스 없이 일반 답변만 합니다.
+     - `CONFLUENCE_ROOT_PAGE_ID`: 지식 베이스로 쓸 상위 페이지 ID. 이 페이지의 하위 문서 전체가 지식 베이스가 됩니다
+       (스페이스 전체가 아니라, AlRouter 관련 문서가 모여있는 상위 페이지만 지정하세요).
+     - `CONFLUENCE_EXCLUDE_PAGE_IDS`: 하위 문서 중 고객에게 노출하면 안 되는 페이지(가격표 등)를 콤마로 구분해 제외.
    - `SLACK_WEBHOOK_URL`: 비워두면 슬랙 알림을 건너뜁니다.
    - `SMTP_*`, `ALERT_EMAIL_*`: 비워두면 이메일 알림을 건너뜁니다.
 

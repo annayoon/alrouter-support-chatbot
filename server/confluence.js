@@ -1,22 +1,38 @@
 const {
   CONFLUENCE_BASE_URL,
-  CONFLUENCE_SPACE_KEY,
+  CONFLUENCE_ROOT_PAGE_ID,
+  CONFLUENCE_EXCLUDE_PAGE_IDS,
   CONFLUENCE_EMAIL,
   CONFLUENCE_API_TOKEN,
 } = process.env;
 
+const excludedPageIds = new Set(
+  (CONFLUENCE_EXCLUDE_PAGE_IDS || '').split(',').map((id) => id.trim()).filter(Boolean)
+);
+
 export function isConfluenceConfigured() {
-  return Boolean(CONFLUENCE_BASE_URL && CONFLUENCE_SPACE_KEY && CONFLUENCE_EMAIL && CONFLUENCE_API_TOKEN);
+  return Boolean(CONFLUENCE_BASE_URL && CONFLUENCE_ROOT_PAGE_ID && CONFLUENCE_EMAIL && CONFLUENCE_API_TOKEN);
 }
 
 const MAX_CHUNK_LEN = 400;
 
+const HTML_ENTITIES = {
+  amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'", apos: "'", nbsp: ' ',
+};
+
+function decodeEntities(text) {
+  return text.replace(/&(#?\w+);/g, (match, code) => HTML_ENTITIES[code] ?? match);
+}
+
 function stripHtml(html) {
-  return html
-    // turn block-level boundaries into newlines before stripping tags, so we can chunk by them
-    .replace(/<\/(p|li|h[1-6]|br|tr)>/gi, '\n')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
+  return decodeEntities(
+    html
+      // turn block-level boundaries into newlines before stripping tags, so we can chunk by them
+      .replace(/<\/(p|li|h[1-6]|br|tr)>/gi, '\n')
+      .replace(/<[^>]+>/g, ' ')
+  )
+    // never let raw links (internal docs, restricted sheets, etc.) reach the model or the customer
+    .replace(/https?:\/\/\S+/g, '[링크 생략]')
     .replace(/[ \t]+/g, ' ')
     .replace(/\n{2,}/g, '\n')
     .trim();
@@ -45,24 +61,35 @@ const CACHE_TTL_MS = 10 * 60 * 1000;
 
 async function fetchSpacePages() {
   const auth = Buffer.from(`${CONFLUENCE_EMAIL}:${CONFLUENCE_API_TOKEN}`).toString('base64');
-  const url = `${CONFLUENCE_BASE_URL.replace(/\/$/, '')}/wiki/rest/api/content` +
-    `?spaceKey=${encodeURIComponent(CONFLUENCE_SPACE_KEY)}&expand=body.storage&limit=50`;
+  const wikiBase = `${CONFLUENCE_BASE_URL.replace(/\/$/, '')}/wiki`;
+  const cql = `ancestor=${CONFLUENCE_ROOT_PAGE_ID}`;
+  let url = `${wikiBase}/rest/api/content/search` +
+    `?cql=${encodeURIComponent(cql)}&expand=body.storage&limit=100`;
 
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Basic ${auth}`,
-      Accept: 'application/json',
-    },
-  });
+  const chunks = [];
 
-  if (!res.ok) {
-    throw new Error(`Confluence API error: ${res.status} ${res.statusText}`);
+  while (url) {
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Basic ${auth}`,
+        Accept: 'application/json',
+      },
+    });
+
+    if (!res.ok) {
+      throw new Error(`Confluence API error: ${res.status} ${res.statusText}`);
+    }
+
+    const data = await res.json();
+    for (const page of data.results || []) {
+      if (excludedPageIds.has(String(page.id))) continue;
+      chunks.push(...chunkText(page.title, stripHtml(page.body?.storage?.value || '')));
+    }
+
+    url = data._links?.next ? `${wikiBase}${data._links.next}` : null;
   }
 
-  const data = await res.json();
-  return (data.results || []).flatMap((page) =>
-    chunkText(page.title, stripHtml(page.body?.storage?.value || ''))
-  );
+  return chunks;
 }
 
 // Returns cached knowledge base chunks: [{ title, text }, ...]
