@@ -1,4 +1,7 @@
 (function () {
+  // Guard against the widget being embedded/loaded more than once on the same page.
+  if (document.getElementById('alrouter-chat-widget-host')) return;
+
   const currentScript = document.currentScript;
   const API_BASE = (currentScript && currentScript.getAttribute('data-api-base')) || '';
   const STORAGE_KEY = 'alrouter_chat_session_id';
@@ -93,9 +96,18 @@
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 
+  let lastSendAt = 0;
+
   async function sendMessage() {
+    // Guards against a second Enter keydown firing right after IME composition
+    // ends (seen on macOS Chrome/Safari with Korean input), which otherwise
+    // re-submits a leftover fragment of the just-cleared input as a new message.
+    const now = Date.now();
+    if (now - lastSendAt < 300) return;
+
     const text = input.value.trim();
     if (!text) return;
+    lastSendAt = now;
     input.value = '';
     addMessage('user', text);
     typingEl.hidden = false;
