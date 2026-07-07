@@ -65,6 +65,7 @@ export const AlertReason = {
   NEGATIVE_SENTIMENT: 'negative_sentiment',
   HUMAN_REQUESTED: 'human_requested',
   SESSION_SUMMARY: 'session_summary',
+  TOPIC_RULE_MATCHED: 'topic_rule_matched',
 };
 
 const TITLES = {
@@ -72,6 +73,7 @@ const TITLES = {
   [AlertReason.NEGATIVE_SENTIMENT]: '[챗봇] 고객 불만 감지',
   [AlertReason.HUMAN_REQUESTED]: '[챗봇] 상담원 연결 요청',
   [AlertReason.SESSION_SUMMARY]: '[챗봇] 대화 요약',
+  [AlertReason.TOPIC_RULE_MATCHED]: '[챗봇] 특정 주제 문의 (가격 등)',
 };
 
 export async function sendAlert(reason, { sessionId, userMessage, botReply, summary }) {

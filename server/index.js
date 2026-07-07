@@ -5,6 +5,7 @@ import { getKnowledgeBaseChunks, selectRelevantChunks, formatChunks, isConfluenc
 import { buildSystemPrompt, getChatReply, summarizeConversation } from './ollama.js';
 import { AlertReason, sendAlert, isAlertingConfigured } from './alerts.js';
 import { detectHumanRequest, detectNegativeSentiment, detectNoAnswer } from './detect.js';
+import { matchTopicRule } from './topicRules.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -64,23 +65,36 @@ app.post('/api/chat', async (req, res) => {
   const session = getSession(sessionId);
 
   try {
-    const allChunks = await getKnowledgeBaseChunks();
-    const relevantChunks = selectRelevantChunks(allChunks, message);
+    const topicRule = matchTopicRule(message);
 
-    // KB is set up but nothing matches this question — don't let the model guess, answer deterministically.
-    const noKnowledgeMatch = isConfluenceConfigured() && relevantChunks.length === 0;
+    let reply;
+    let noKnowledgeMatch = false;
 
-    const reply = noKnowledgeMatch
-      ? NO_MATCH_REPLY
-      : await getChatReply({
-          systemPrompt: buildSystemPrompt(formatChunks(relevantChunks)),
-          history: session.history,
-          userMessage: message,
-        });
+    if (topicRule) {
+      // Fixed, guaranteed answer for sensitive topics (pricing, etc.) — never let the model improvise here.
+      reply = topicRule.reply;
+    } else {
+      const allChunks = await getKnowledgeBaseChunks();
+      const relevantChunks = selectRelevantChunks(allChunks, message);
+
+      // KB is set up but nothing matches this question — don't let the model guess, answer deterministically.
+      noKnowledgeMatch = isConfluenceConfigured() && relevantChunks.length === 0;
+
+      reply = noKnowledgeMatch
+        ? NO_MATCH_REPLY
+        : await getChatReply({
+            systemPrompt: buildSystemPrompt(formatChunks(relevantChunks)),
+            history: session.history,
+            userMessage: message,
+          });
+    }
 
     session.history.push({ role: 'user', content: message });
     session.history.push({ role: 'assistant', content: reply });
 
+    if (topicRule) {
+      await maybeAlert(session, sessionId, AlertReason.TOPIC_RULE_MATCHED, { userMessage: message, botReply: reply });
+    }
     if (detectHumanRequest(message)) {
       await maybeAlert(session, sessionId, AlertReason.HUMAN_REQUESTED, { userMessage: message, botReply: reply });
     }
