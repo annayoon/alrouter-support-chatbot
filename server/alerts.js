@@ -2,6 +2,7 @@ import nodemailer from 'nodemailer';
 
 const {
   SLACK_WEBHOOK_URL,
+  GOOGLE_CHAT_WEBHOOK_URL,
   SMTP_HOST,
   SMTP_PORT,
   SMTP_USER,
@@ -11,6 +12,7 @@ const {
 } = process.env;
 
 const isSlackConfigured = () => Boolean(SLACK_WEBHOOK_URL);
+const isGoogleChatConfigured = () => Boolean(GOOGLE_CHAT_WEBHOOK_URL);
 const isEmailConfigured = () =>
   Boolean(SMTP_HOST && SMTP_PORT && SMTP_USER && SMTP_PASS && ALERT_EMAIL_FROM && ALERT_EMAIL_TO);
 
@@ -42,6 +44,21 @@ async function sendSlack(title, lines) {
   }
 }
 
+async function sendGoogleChat(title, lines) {
+  if (!isGoogleChatConfigured()) return;
+  try {
+    await fetch(GOOGLE_CHAT_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: `*${title}*\n${lines.join('\n')}`,
+      }),
+    });
+  } catch (err) {
+    console.error('[alerts] google chat send failed:', err.message);
+  }
+}
+
 async function sendEmail(subject, body) {
   if (!isEmailConfigured()) return;
   try {
@@ -57,7 +74,11 @@ async function sendEmail(subject, body) {
 }
 
 async function notify(title, lines) {
-  await Promise.all([sendSlack(title, lines), sendEmail(title, lines.join('\n'))]);
+  await Promise.all([
+    sendSlack(title, lines),
+    sendGoogleChat(title, lines),
+    sendEmail(title, lines.join('\n')),
+  ]);
 }
 
 export const AlertReason = {
@@ -89,5 +110,5 @@ export async function sendAlert(reason, { sessionId, userMessage, botReply, summ
 }
 
 export function isAlertingConfigured() {
-  return isSlackConfigured() || isEmailConfigured();
+  return isSlackConfigured() || isGoogleChatConfigured() || isEmailConfigured();
 }
