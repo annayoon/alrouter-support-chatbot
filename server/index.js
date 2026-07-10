@@ -5,7 +5,7 @@ import { getKnowledgeBaseChunks, selectRelevantChunks, formatChunks, isConfluenc
 import { buildSystemPrompt, getChatReply, summarizeConversation } from './ollama.js';
 import { AlertReason, sendAlert, isAlertingConfigured } from './alerts.js';
 import { detectHumanRequest, detectNegativeSentiment, detectNoAnswer } from './detect.js';
-import { matchTopicRule } from './topicRules.js';
+import { matchTopicRule, resolveTopicReply } from './topicRules.js';
 import { containsBannedWord, maskSensitiveInfo } from './moderation.js';
 
 const app = express();
@@ -162,7 +162,7 @@ app.post('/api/chat', rateLimit, async (req, res) => {
 
     if (topicRule) {
       // Fixed, guaranteed answer for sensitive topics (pricing, etc.) — never let the model improvise here.
-      reply = topicRule.reply;
+      reply = resolveTopicReply(topicRule, safeMessage);
     } else {
       const allChunks = await getKnowledgeBaseChunks();
       const relevantChunks = await selectRelevantChunks(allChunks, safeMessage);
@@ -185,7 +185,7 @@ app.post('/api/chat', rateLimit, async (req, res) => {
       session.history.splice(0, session.history.length - MAX_STORED_HISTORY);
     }
 
-    if (topicRule) {
+    if (topicRule && !topicRule.silent) {
       await maybeAlert(session, sessionId, AlertReason.TOPIC_RULE_MATCHED, { userMessage: safeMessage, botReply: reply });
     }
     if (detectHumanRequest(safeMessage)) {

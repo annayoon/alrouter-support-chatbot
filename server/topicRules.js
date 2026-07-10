@@ -1,7 +1,20 @@
 // Fixed answers for specific topics, checked before the LLM is called.
 // Use this when you want a guaranteed, consistent reply regardless of what the
 // model would say (e.g. pricing, legal, anything customer-sensitive).
+const ENGLISH_GREETING = /\b(hello|hi|hey)\b/i;
+
 export const TOPIC_RULES = [
+  {
+    // Checked first: a plain greeting shouldn't fall through to KB lookup/LLM at all.
+    id: 'greeting',
+    keywords: [/^\s*(안녕|하이|헬로)/, /반갑/, ENGLISH_GREETING],
+    silent: true, // just a greeting — doesn't need a staff alert
+    // reply can be a function(message) for cases where the fixed answer still
+    // needs to match the customer's language.
+    reply: (message) => ENGLISH_GREETING.test(message)
+      ? 'Hello! This is the AlRouter.ai support chatbot. How can I help you today?'
+      : '안녕하세요! AlRouter.ai 고객센터입니다. 무엇을 도와드릴까요?',
+  },
   {
     // Must come before 'pricing' below — "할인율 얼마야?" would otherwise also
     // match pricing's /얼마/ keyword and never reach this more specific rule.
@@ -38,4 +51,8 @@ export const TOPIC_RULES = [
 
 export function matchTopicRule(message) {
   return TOPIC_RULES.find((rule) => rule.keywords.some((re) => re.test(message))) || null;
+}
+
+export function resolveTopicReply(rule, message) {
+  return typeof rule.reply === 'function' ? rule.reply(message) : rule.reply;
 }
