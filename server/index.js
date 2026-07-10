@@ -40,13 +40,43 @@ const SESSION_TTL_MS = 30 * 60 * 1000;
 // the model itself only sees the last few turns (see ollama.js).
 const MAX_STORED_HISTORY = 20;
 
+// pagehide (used to signal "tab closed") also fires on an ordinary refresh, so
+// a /session/end call doesn't finalize immediately — it's delayed by this grace
+// period, canceled if the same session sends another /api/chat in the meantime
+// (i.e. it was just a reload), and only then treated as a real end.
+const SESSION_END_GRACE_MS = 10 * 1000;
+const pendingEndTimers = new Map();
+
 function getSession(sessionId) {
   if (!sessions.has(sessionId)) {
     sessions.set(sessionId, { history: [], alerted: new Set(), lastActiveAt: Date.now() });
   }
   const session = sessions.get(sessionId);
   session.lastActiveAt = Date.now();
+
+  const pendingEnd = pendingEndTimers.get(sessionId);
+  if (pendingEnd) {
+    clearTimeout(pendingEnd);
+    pendingEndTimers.delete(sessionId);
+  }
+
   return session;
+}
+
+async function finalizeSessionEnd(sessionId) {
+  pendingEndTimers.delete(sessionId);
+  const session = sessions.get(sessionId);
+  if (!session) return;
+
+  if (session.history.length > 0) {
+    try {
+      const summary = await summarizeConversation(session.history);
+      await sendAlert(AlertReason.SESSION_SUMMARY, { sessionId, summary });
+    } catch (err) {
+      console.error('[session/end] summary failed:', err.message);
+    }
+  }
+  sessions.delete(sessionId);
 }
 
 // Widgets closed without calling /session/end would otherwise leak forever.
@@ -175,18 +205,14 @@ app.post('/api/chat', rateLimit, async (req, res) => {
   }
 });
 
-app.post('/api/session/end', async (req, res) => {
+app.post('/api/session/end', (req, res) => {
   const { sessionId } = req.body || {};
   const session = sessionId && sessions.get(sessionId);
 
-  if (session && session.history.length > 0) {
-    try {
-      const summary = await summarizeConversation(session.history);
-      await sendAlert(AlertReason.SESSION_SUMMARY, { sessionId, summary });
-    } catch (err) {
-      console.error('[session/end] summary failed:', err.message);
-    }
-    sessions.delete(sessionId);
+  if (session && !pendingEndTimers.has(sessionId)) {
+    const timer = setTimeout(() => finalizeSessionEnd(sessionId), SESSION_END_GRACE_MS);
+    timer.unref();
+    pendingEndTimers.set(sessionId, timer);
   }
 
   res.status(204).end();
