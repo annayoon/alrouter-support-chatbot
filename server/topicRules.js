@@ -3,6 +3,13 @@
 // model would say (e.g. pricing, legal, anything customer-sensitive).
 export const TOPIC_RULES = [
   {
+    // Must come before 'pricing' below — "할인율 얼마야?" would otherwise also
+    // match pricing's /얼마/ keyword and never reach this more specific rule.
+    id: 'discount',
+    keywords: [/할인/, /discount/i],
+    reply: 'AlRouter.ai 할인율은 공급사 공식 가격 대비 최대 10%입니다.',
+  },
+  {
     id: 'pricing',
     keywords: [/가격/, /요금/, /비용/, /얼마/, /플랜/, /pricing/i, /price/i],
     reply: 'AlRouter.ai 가격 안내는 support@alrouter.ai로 문의해주시면 담당자가 확인 후 안내드리겠습니다.',
