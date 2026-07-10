@@ -19,8 +19,8 @@ export const TOPIC_RULES = [
     // reply can be a function(message) for cases where the fixed answer still
     // needs to match the customer's language.
     reply: (message) => ENGLISH_GREETING.test(message)
-      ? 'Hello! This is the AlRouter.ai support chatbot. How can I help you today?'
-      : '안녕하세요! AlRouter.ai 고객센터입니다. 무엇을 도와드릴까요?',
+      ? "Hi! I'm an AI-powered support chatbot for AlRouter.ai. I'll do my best to help, but as an AI I may occasionally give incomplete or inaccurate answers. How can I help you today?"
+      : '안녕하세요! 저는 AI 기반 AlRouter.ai 고객센터 챗봇입니다. 최선을 다해 답변드리지만, AI 특성상 응대가 미흡하거나 부정확할 수 있는 점 양해 부탁드립니다. 무엇을 도와드릴까요?',
   },
   {
     // Must come before 'pricing' below — "할인율 얼마야?" would otherwise also

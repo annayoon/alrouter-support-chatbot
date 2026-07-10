@@ -24,7 +24,7 @@
     placeholder: 'Type your question',
     send: 'Send',
     typing: 'Typing...',
-    greeting: 'Hello! This is the AlRouter.ai support chatbot. How can I help you today?',
+    greeting: "Hi! I'm an AI-powered support chatbot for AlRouter.ai. I'll do my best to help, but as an AI I may occasionally give incomplete or inaccurate answers. How can I help you today?",
     error: 'Sorry, something went wrong. Please try again in a moment.',
     launcherLabel: 'Open chat',
   } : {
@@ -32,7 +32,7 @@
     placeholder: '궁금한 점을 입력하세요',
     send: '전송',
     typing: '답변 작성 중...',
-    greeting: '안녕하세요! alrouter.ai 고객센터입니다. 무엇을 도와드릴까요?',
+    greeting: '안녕하세요! 저는 AI 기반 alrouter.ai 고객센터 챗봇입니다. 최선을 다해 답변드리지만, AI 특성상 응대가 미흡하거나 부정확할 수 있는 점 양해 부탁드립니다. 무엇을 도와드릴까요?',
     error: '죄송합니다, 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
     launcherLabel: '채팅 열기',
   };
