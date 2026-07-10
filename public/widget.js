@@ -18,6 +18,25 @@
 
   const sessionId = getSessionId();
 
+  const isEnglish = navigator.language.toLowerCase().startsWith('en');
+  const UI = isEnglish ? {
+    header: 'AlRouter.ai Support',
+    placeholder: 'Type your question',
+    send: 'Send',
+    typing: 'Typing...',
+    greeting: 'Hello! This is the AlRouter.ai support chatbot. How can I help you today?',
+    error: 'Sorry, something went wrong. Please try again in a moment.',
+    launcherLabel: 'Open chat',
+  } : {
+    header: 'alrouter.ai 고객센터',
+    placeholder: '궁금한 점을 입력하세요',
+    send: '전송',
+    typing: '답변 작성 중...',
+    greeting: '안녕하세요! alrouter.ai 고객센터입니다. 무엇을 도와드릴까요?',
+    error: '죄송합니다, 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+    launcherLabel: '채팅 열기',
+  };
+
   // Visible chat log persists across reloads/panel toggles for the life of the
   // tab (sessionStorage), separate from the server-side conversation history.
   function loadChatLog() {
@@ -72,14 +91,14 @@
       }
       .typing { font-size: 12px; color: #888; padding: 0 12px 8px; }
     </style>
-    <button class="launcher" aria-label="Open chat">💬</button>
+    <button class="launcher" aria-label="${UI.launcherLabel}">💬</button>
     <div class="panel">
-      <div class="header">alrouter.ai 고객센터</div>
+      <div class="header">${UI.header}</div>
       <div class="messages"></div>
-      <div class="typing" hidden>답변 작성 중...</div>
+      <div class="typing" hidden>${UI.typing}</div>
       <div class="input-row">
-        <input type="text" placeholder="궁금한 점을 입력하세요" />
-        <button type="button">전송</button>
+        <input type="text" placeholder="${UI.placeholder}" />
+        <button type="button">${UI.send}</button>
       </div>
     </div>
   `;
@@ -94,7 +113,7 @@
   launcher.addEventListener('click', () => {
     panel.classList.toggle('open');
     if (panel.classList.contains('open') && chatLog.length === 0) {
-      addMessage('bot', '안녕하세요! alrouter.ai 고객센터입니다. 무엇을 도와드릴까요?');
+      addMessage('bot', UI.greeting);
     }
   });
 
@@ -144,7 +163,7 @@
       if (!res.ok) throw new Error(data.error || 'request failed');
       addMessage('bot', data.reply);
     } catch (err) {
-      addMessage('bot', '죄송합니다, 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+      addMessage('bot', UI.error);
     } finally {
       typingEl.hidden = true;
     }
