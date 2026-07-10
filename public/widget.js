@@ -5,6 +5,7 @@
   const currentScript = document.currentScript;
   const API_BASE = (currentScript && currentScript.getAttribute('data-api-base')) || '';
   const STORAGE_KEY = 'alrouter_chat_session_id';
+  const HISTORY_KEY = 'alrouter_chat_history';
 
   function getSessionId() {
     let id = sessionStorage.getItem(STORAGE_KEY);
@@ -16,6 +17,18 @@
   }
 
   const sessionId = getSessionId();
+
+  // Visible chat log persists across reloads/panel toggles for the life of the
+  // tab (sessionStorage), separate from the server-side conversation history.
+  function loadChatLog() {
+    try {
+      return JSON.parse(sessionStorage.getItem(HISTORY_KEY) || '[]');
+    } catch {
+      return [];
+    }
+  }
+
+  const chatLog = loadChatLog();
 
   const host = document.createElement('div');
   host.id = 'alrouter-chat-widget-host';
@@ -80,12 +93,12 @@
 
   launcher.addEventListener('click', () => {
     panel.classList.toggle('open');
-    if (panel.classList.contains('open') && messagesEl.children.length === 0) {
+    if (panel.classList.contains('open') && chatLog.length === 0) {
       addMessage('bot', '안녕하세요! alrouter.ai 고객센터입니다. 무엇을 도와드릴까요?');
     }
   });
 
-  function addMessage(role, text) {
+  function renderMessage(role, text) {
     const row = document.createElement('div');
     row.className = `msg ${role}`;
     const bubble = document.createElement('span');
@@ -95,6 +108,15 @@
     messagesEl.appendChild(row);
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
+
+  function addMessage(role, text) {
+    renderMessage(role, text);
+    chatLog.push({ role, text });
+    sessionStorage.setItem(HISTORY_KEY, JSON.stringify(chatLog));
+  }
+
+  // Restore whatever was on screen before this reload (same tab/session only).
+  chatLog.forEach((m) => renderMessage(m.role, m.text));
 
   let lastSendAt = 0;
 
