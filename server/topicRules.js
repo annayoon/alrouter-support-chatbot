@@ -47,6 +47,27 @@ export const TOPIC_RULES = [
     keywords: [/취약점/, /보안\s*(신고|이슈|문제|사고)/, /vulnerabilit(y|ies)/i, /security\s*(issue|report|bug)/i],
     reply: '보안 취약점 신고는 support@alrouter.ai로 상세 내용(재현 방법 포함)과 함께 제보해주시면 담당팀이 신속히 확인 후 조치하겠습니다.',
   },
+  {
+    id: 'payment-method',
+    keywords: [/결제\s*수단/, /카드\s*(등록|변경|삭제)/, /payment\s*method/i, /card\s*regist/i],
+    reply: '결제 수단 등록/변경 관련 문의는 support@alrouter.ai로 남겨주시면 담당자가 확인 후 안내드리겠습니다.',
+  },
+  {
+    id: 'account-deletion',
+    keywords: [/회원\s*탈퇴/, /계정\s*(삭제|탈퇴)/, /delete\s*(my\s*)?account/i, /account\s*deletion/i],
+    reply: '회원 탈퇴는 본인 확인이 필요하여, support@alrouter.ai로 문의해주시면 절차를 안내해드리겠습니다.',
+  },
+  {
+    id: 'service-outage',
+    // Bare /다운/ would also match "다운로드" (download), so require it near "서비스".
+    keywords: [/장애/, /서비스.{0,15}(다운|중단)/, /오류\s*(신고|접수)/, /service\s*(down|outage)/i],
+    reply: '서비스 장애나 오류는 support@alrouter.ai로 발생 시각과 증상을 함께 알려주시면 신속히 확인하겠습니다.',
+  },
+  {
+    id: 'enterprise-inquiry',
+    keywords: [/기업\s*(도입|이용|계약|문의)/, /엔터프라이즈/, /enterprise/i],
+    reply: '기업(엔터프라이즈) 도입 문의는 support@alrouter.ai로 남겨주시면 담당자가 안내드리겠습니다.',
+  },
 ];
 
 export function matchTopicRule(message) {
