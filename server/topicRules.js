@@ -75,6 +75,19 @@ export const TOPIC_RULES = [
     keywords: [/기업\s*(도입|이용|계약|문의)/, /엔터프라이즈/, /enterprise/i],
     reply: '기업(엔터프라이즈) 도입 문의는 support@alrouter.ai로 남겨주시면 담당자가 안내드리겠습니다.',
   },
+  {
+    id: 'supported-models',
+    keywords: [
+      /(지원|제공).{0,5}모델/,
+      /모델.{0,5}(목록|리스트|종류)/,
+      /어떤\s*모델/,
+      /무슨\s*모델/,
+      /which\s*models/i,
+      /supported\s*models/i,
+      /available\s*models/i,
+    ],
+    reply: "제공되는 모델 목록은 '모델 & 가격' 페이지를 참고해주세요. 제공 모델과 가격은 수시로 변동될 수 있으니, 정확한 사항은 support@alrouter.ai로 문의해주시면 안내드리겠습니다.",
+  },
 ];
 
 export function matchTopicRule(message) {
