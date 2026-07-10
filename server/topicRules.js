@@ -26,7 +26,7 @@ export const TOPIC_RULES = [
     // Must come before 'pricing' below — "할인율 얼마야?" would otherwise also
     // match pricing's /얼마/ keyword and never reach this more specific rule.
     id: 'discount',
-    keywords: [/할인/, /discount/i],
+    keywords: [/할인/, /discount/i, /싸/, /저렴/, /cheap(er)?/i, /affordable/i],
     reply: 'AlRouter.ai 할인율은 공급사 공식 가격 대비 최대 10%입니다.',
   },
   {
