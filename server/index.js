@@ -6,12 +6,14 @@ import { buildSystemPrompt, getChatReply, summarizeConversation } from './ollama
 import { AlertReason, sendAlert, isAlertingConfigured } from './alerts.js';
 import { detectHumanRequest, detectNegativeSentiment, detectNoAnswer } from './detect.js';
 import { matchTopicRule } from './topicRules.js';
+import { containsBannedWord, maskSensitiveInfo } from './moderation.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '127.0.0.1';
 
 const NO_MATCH_REPLY = '문의하신 내용은 정확한 답변을 위해 담당자에게 전달했습니다. 확인 후 안내드리겠습니다.';
+const BANNED_WORD_REPLY = '부적절한 표현이 감지되어 답변을 드릴 수 없습니다. 정중한 표현으로 다시 문의해주세요.';
 
 const ALLOWED_ORIGINS = (process.env.CORS_ALLOWED_ORIGINS || '')
   .split(',').map((s) => s.trim()).filter(Boolean);
@@ -110,9 +112,20 @@ app.post('/api/chat', rateLimit, async (req, res) => {
 
   const sessionId = incomingSessionId || randomUUID();
   const session = getSession(sessionId);
+  // Mask PII (resident registration/card/phone numbers) before it ever touches
+  // session history, the model, or outbound alert webhooks.
+  const safeMessage = maskSensitiveInfo(message);
 
   try {
-    const topicRule = matchTopicRule(message);
+    if (containsBannedWord(message)) {
+      const reply = BANNED_WORD_REPLY;
+      session.history.push({ role: 'user', content: safeMessage });
+      session.history.push({ role: 'assistant', content: reply });
+      await maybeAlert(session, sessionId, AlertReason.INAPPROPRIATE_LANGUAGE, { userMessage: safeMessage, botReply: reply });
+      return res.json({ sessionId, reply });
+    }
+
+    const topicRule = matchTopicRule(safeMessage);
 
     let reply;
     let noKnowledgeMatch = false;
@@ -122,7 +135,7 @@ app.post('/api/chat', rateLimit, async (req, res) => {
       reply = topicRule.reply;
     } else {
       const allChunks = await getKnowledgeBaseChunks();
-      const relevantChunks = await selectRelevantChunks(allChunks, message);
+      const relevantChunks = await selectRelevantChunks(allChunks, safeMessage);
 
       // KB is set up but nothing matches this question — don't let the model guess, answer deterministically.
       noKnowledgeMatch = isConfluenceConfigured() && relevantChunks.length === 0;
@@ -132,27 +145,27 @@ app.post('/api/chat', rateLimit, async (req, res) => {
         : await getChatReply({
             systemPrompt: buildSystemPrompt(formatChunks(relevantChunks)),
             history: session.history,
-            userMessage: message,
+            userMessage: safeMessage,
           });
     }
 
-    session.history.push({ role: 'user', content: message });
+    session.history.push({ role: 'user', content: safeMessage });
     session.history.push({ role: 'assistant', content: reply });
     if (session.history.length > MAX_STORED_HISTORY) {
       session.history.splice(0, session.history.length - MAX_STORED_HISTORY);
     }
 
     if (topicRule) {
-      await maybeAlert(session, sessionId, AlertReason.TOPIC_RULE_MATCHED, { userMessage: message, botReply: reply });
+      await maybeAlert(session, sessionId, AlertReason.TOPIC_RULE_MATCHED, { userMessage: safeMessage, botReply: reply });
     }
-    if (detectHumanRequest(message)) {
-      await maybeAlert(session, sessionId, AlertReason.HUMAN_REQUESTED, { userMessage: message, botReply: reply });
+    if (detectHumanRequest(safeMessage)) {
+      await maybeAlert(session, sessionId, AlertReason.HUMAN_REQUESTED, { userMessage: safeMessage, botReply: reply });
     }
-    if (detectNegativeSentiment(message)) {
-      await maybeAlert(session, sessionId, AlertReason.NEGATIVE_SENTIMENT, { userMessage: message, botReply: reply });
+    if (detectNegativeSentiment(safeMessage)) {
+      await maybeAlert(session, sessionId, AlertReason.NEGATIVE_SENTIMENT, { userMessage: safeMessage, botReply: reply });
     }
     if (noKnowledgeMatch || detectNoAnswer(reply)) {
-      await maybeAlert(session, sessionId, AlertReason.NO_ANSWER, { userMessage: message, botReply: reply });
+      await maybeAlert(session, sessionId, AlertReason.NO_ANSWER, { userMessage: safeMessage, botReply: reply });
     }
 
     res.json({ sessionId, reply });

@@ -87,6 +87,7 @@ export const AlertReason = {
   HUMAN_REQUESTED: 'human_requested',
   SESSION_SUMMARY: 'session_summary',
   TOPIC_RULE_MATCHED: 'topic_rule_matched',
+  INAPPROPRIATE_LANGUAGE: 'inappropriate_language',
 };
 
 const TITLES = {
@@ -95,6 +96,7 @@ const TITLES = {
   [AlertReason.HUMAN_REQUESTED]: '[챗봇] 상담원 연결 요청',
   [AlertReason.SESSION_SUMMARY]: '[챗봇] 대화 요약',
   [AlertReason.TOPIC_RULE_MATCHED]: '[챗봇] 특정 주제 문의 (가격 등)',
+  [AlertReason.INAPPROPRIATE_LANGUAGE]: '[챗봇] 부적절한 언어 감지',
 };
 
 export async function sendAlert(reason, { sessionId, userMessage, botReply, summary }) {
