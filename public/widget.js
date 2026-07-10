@@ -74,7 +74,19 @@
       .header {
         background: #4f46e5; color: #fff; padding: 12px 16px; font-weight: 600; font-size: 14px;
       }
-      .messages { flex: 1; overflow-y: auto; padding: 12px; font-size: 14px; }
+      .messages { flex: 1; overflow-y: auto; padding: 12px; font-size: 14px; position: relative; }
+      .messages::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background-image: url('${API_BASE}/assets/logo.svg');
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: 140px;
+        opacity: 0.06;
+        pointer-events: none;
+      }
+      .messages .msg { position: relative; }
       .msg { margin-bottom: 10px; line-height: 1.4; white-space: pre-wrap; }
       .msg.user { text-align: right; color: #111; }
       .msg.bot { text-align: left; color: #333; }
