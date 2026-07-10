@@ -136,10 +136,24 @@ function cosineSimilarity(a, b) {
 // server answers deterministically instead of letting the model improvise.
 const MIN_SIMILARITY = 0.4;
 
+// Customers write the brand name inconsistently (AlRouter / alrouter / 알라우터).
+// Normalize to one canonical spelling before retrieval so keyword matching and
+// embeddings both see the same string the KB itself uses ("AlRouter").
+const BRAND_ALIASES = [
+  { pattern: /알\s*라우터/gi, canonical: 'AlRouter' },
+  { pattern: /al\s*router/gi, canonical: 'AlRouter' },
+];
+
+function normalizeBrandMentions(text) {
+  return BRAND_ALIASES.reduce((acc, { pattern, canonical }) => acc.replace(pattern, canonical), text);
+}
+
 // Semantic retrieval via embeddings; falls back to keyword overlap when
 // embeddings are unavailable (embed model not pulled, Ollama down at KB fetch).
 export async function selectRelevantChunks(chunks, query, topK = 4) {
   if (!chunks.length) return [];
+
+  query = normalizeBrandMentions(query);
 
   if (chunks[0].embedding) {
     const queryEmbeddings = await embedTexts([query]);
@@ -159,6 +173,10 @@ export async function selectRelevantChunks(chunks, query, topK = 4) {
 // Keyword-overlap fallback: score each chunk by how many query tokens it contains.
 function selectByKeyword(chunks, query, topK) {
   const tokens = query
+    // Korean particles attach directly to Latin words with no space ("AlRouter가"),
+    // which would otherwise survive as one unmatchable token — split the boundary.
+    .replace(/([a-zA-Z0-9])([가-힣])/g, '$1 $2')
+    .replace(/([가-힣])([a-zA-Z0-9])/g, '$1 $2')
     .toLowerCase()
     .split(/[\s,.?!:;()[\]"'~]+/)
     .filter((t) => t.length >= 2);
