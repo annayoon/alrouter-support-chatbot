@@ -93,7 +93,11 @@ export async function summarizeConversation(history) {
   const messages = [
     {
       role: 'system',
-      content: 'Summarize the following customer support conversation in 2-3 sentences for an internal staff notification. Include the customer\'s main issue and whether it was resolved.',
+      content: [
+        '아래는 고객센터 상담 대화 기록이다.',
+        '반드시 한국어로만, 2~3문장으로 담당 직원에게 전달할 요약을 작성한다. 다른 언어를 섞지 않는다.',
+        '고객의 주요 문의 내용과 해결 여부를 포함한다.',
+      ].join('\n'),
     },
     ...history,
   ];
