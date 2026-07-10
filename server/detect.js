@@ -10,6 +10,7 @@ const NEGATIVE_SENTIMENT_PATTERNS = [
 
 const NO_ANSWER_PATTERNS = [
   /모르겠/, /확인.{0,3}(후|해서).{0,3}(안내|답변)/, /정보가 없/, /찾을 수 없/,
+  /담당자.{0,10}전달/, // covers both NO_MATCH_REPLY and the model's own few-shot-style phrasing
   /i (don't|do not) know/i, /not sure/i, /no information/i, /cannot find/i,
 ];
 
