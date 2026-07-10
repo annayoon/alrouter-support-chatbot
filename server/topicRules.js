@@ -1,13 +1,20 @@
 // Fixed answers for specific topics, checked before the LLM is called.
 // Use this when you want a guaranteed, consistent reply regardless of what the
 // model would say (e.g. pricing, legal, anything customer-sensitive).
-const ENGLISH_GREETING = /\b(hello|hi|hey)\b/i;
+const ENGLISH_GREETING = /\b(hello|hi|hey|good\s*(morning|afternoon|evening))\b/i;
 
 export const TOPIC_RULES = [
   {
     // Checked first: a plain greeting shouldn't fall through to KB lookup/LLM at all.
     id: 'greeting',
-    keywords: [/^\s*(안녕|하이|헬로)/, /반갑/, ENGLISH_GREETING],
+    keywords: [
+      /^\s*(안녕|하이|헬로|안뇽)/,
+      /반갑/,
+      /좋은\s*(아침|오후|저녁)/,
+      /여보세요/,
+      /굿\s*모닝/,
+      ENGLISH_GREETING,
+    ],
     silent: true, // just a greeting — doesn't need a staff alert
     // reply can be a function(message) for cases where the fixed answer still
     // needs to match the customer's language.
