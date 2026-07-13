@@ -173,6 +173,35 @@ export async function selectRelevantChunks(chunks, query, topK = 4) {
   return selectByKeyword(chunks, query, topK);
 }
 
+// Bare verb-ending/copula tokens that leak into answer prose ("이용하실 수 있어")
+// and collide with substrings all over the KB — "있어" once tied the correct
+// chunk and lost on array order. Dropped so they can't score. Deliberately does
+// NOT include interrogatives (어떻게/어디/무슨…): those match the stored FAQ
+// *question* text and are a useful disambiguating signal, not noise.
+const KEYWORD_STOPWORDS = new Set([
+  '있어', '있나요', '있는', '있을', '있습니다', '없어', '없나요', '없는',
+  '해요', '하나요', '하는', '합니다', '되나요', '되는', '됩니다', '돼요',
+  '인가요', '인가', '까요', '나요',
+]);
+
+// Trailing particles/endings stripped so an inflected query token matches the
+// KB's plain stem ("시스템하고" → "시스템", "연동할" → "연동", "그룹웨어랑" → "그룹웨어").
+// Longer particles first; only stripped when ≥2 chars remain so short stems survive.
+const PARTICLE_SUFFIXES = [
+  '이랑', '에서', '으로', '에게', '까지', '부터', '보다', '처럼', '이나', '하고', '마다',
+  '은', '는', '이', '가', '을', '를', '에', '의', '도', '만', '과', '와', '랑', '로',
+  '할', '한', '해', '된', '될', '돼',
+];
+
+function stripParticle(token) {
+  for (const suffix of PARTICLE_SUFFIXES) {
+    if (token.length > suffix.length + 1 && token.endsWith(suffix)) {
+      return token.slice(0, -suffix.length);
+    }
+  }
+  return token;
+}
+
 // Keyword-overlap fallback: score each chunk by how many query tokens it contains.
 function selectByKeyword(chunks, query, topK) {
   const tokens = query
@@ -182,7 +211,8 @@ function selectByKeyword(chunks, query, topK) {
     .replace(/([가-힣])([a-zA-Z0-9])/g, '$1 $2')
     .toLowerCase()
     .split(/[\s,.?!:;()[\]"'~]+/)
-    .filter((t) => t.length >= 2);
+    .map(stripParticle)
+    .filter((t) => t.length >= 2 && !KEYWORD_STOPWORDS.has(t));
 
   if (!tokens.length) return chunks.slice(0, topK);
 
