@@ -1,4 +1,5 @@
 import { embedTexts } from './ollama.js';
+import { getFaqChunks } from './faq.js';
 
 const {
   CONFLUENCE_BASE_URL,
@@ -95,20 +96,22 @@ async function fetchSpacePages() {
 }
 
 // Returns cached knowledge base chunks: [{ title, text }, ...]
+// The built-in FAQ (faq.js) is always included; Confluence pages are merged in
+// when configured.
 export async function getKnowledgeBaseChunks() {
-  if (!isConfluenceConfigured()) return [];
-
   const isFresh = Date.now() - cache.fetchedAt < CACHE_TTL_MS;
   if (isFresh && cache.chunks.length) return cache.chunks;
 
   try {
-    const chunks = await fetchSpacePages();
+    const confluenceChunks = isConfluenceConfigured() ? await fetchSpacePages() : [];
+    const chunks = [...getFaqChunks(), ...confluenceChunks];
     await attachEmbeddings(chunks);
     cache = { chunks, fetchedAt: Date.now() };
     return chunks;
   } catch (err) {
     console.error('[confluence] failed to fetch knowledge base:', err.message);
-    return cache.chunks;
+    // Stale cache beats FAQ-only; FAQ-only (keyword retrieval) beats nothing.
+    return cache.chunks.length ? cache.chunks : getFaqChunks();
   }
 }
 

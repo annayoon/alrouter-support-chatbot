@@ -167,8 +167,9 @@ app.post('/api/chat', rateLimit, async (req, res) => {
       const allChunks = await getKnowledgeBaseChunks();
       const relevantChunks = await selectRelevantChunks(allChunks, safeMessage);
 
-      // KB is set up but nothing matches this question — don't let the model guess, answer deterministically.
-      noKnowledgeMatch = isConfluenceConfigured() && relevantChunks.length === 0;
+      // KB has content (built-in FAQ and/or Confluence) but nothing matches
+      // this question — don't let the model guess, answer deterministically.
+      noKnowledgeMatch = allChunks.length > 0 && relevantChunks.length === 0;
 
       reply = noKnowledgeMatch
         ? NO_MATCH_REPLY
