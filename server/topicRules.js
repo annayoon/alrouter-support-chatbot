@@ -27,7 +27,7 @@ export const TOPIC_RULES = [
     // match pricing's /얼마/ keyword and never reach this more specific rule.
     id: 'discount',
     keywords: [/할인/, /discount/i, /싸/, /저렴/, /cheap(er)?/i, /affordable/i],
-    reply: 'AlRouter.ai는 공급사 공식 가격 대비 더 저렴한 가격으로 제공하고 있습니다.',
+    reply: 'AlRouter.ai는 공급사 공식 가격 대비 더 저렴한 가격으로 제공하고 있습니다. 구체적인 할인율은 support@alrouter.ai로 문의해주시면 안내드리겠습니다.',
   },
   {
     id: 'pricing',
