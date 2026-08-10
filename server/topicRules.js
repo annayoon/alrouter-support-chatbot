@@ -39,7 +39,7 @@ export const TOPIC_RULES = [
       /log\s*in/i, /sign\s*(in|up)/i, /create\s*(an?\s*)?account/i, /password\s*reset/i,
     ],
     silent: true, // routine how-to — doesn't need a staff alert
-    reply: 'alrouter.ai 우측 상단의 로그인 버튼에서 가입하신 계정으로 로그인하실 수 있습니다. 로그인 ID/PW 정보가 없으시다면 담당자(support@alrouter.ai)에게 문의하여 계정 정보를 받으신 후 로그인해 주세요.',
+    reply: 'alrouter.ai 우측 상단의 로그인 버튼에서 가입하신 계정으로 로그인하실 수 있습니다. 로그인 ID/PW 정보가 없으시다면 소속 회사의 AlRouter 담당자에게 문의하여 계정 정보를 받으신 후 로그인해 주세요.',
   },
   {
     id: 'pricing',
