@@ -102,10 +102,20 @@ export const TOPIC_RULES = [
   },
 ];
 
+// Appended to account/contract/billing topics: most customers use AlRouter
+// through their company, and those matters are handled by the company's own
+// admin before they ever reach the AlRouter support inbox.
+const COMPANY_FIRST_NOTE = ' 회사를 통해 AlRouter를 이용 중이시라면, 먼저 소속 회사의 AlRouter 담당자에게 문의해 주세요.';
+const COMPANY_FIRST_IDS = new Set([
+  'discount', 'pricing', 'refund', 'contract-termination',
+  'payment-method', 'account-deletion', 'service-outage',
+]);
+
 export function matchTopicRule(message) {
   return TOPIC_RULES.find((rule) => rule.keywords.some((re) => re.test(message))) || null;
 }
 
 export function resolveTopicReply(rule, message) {
-  return typeof rule.reply === 'function' ? rule.reply(message) : rule.reply;
+  const reply = typeof rule.reply === 'function' ? rule.reply(message) : rule.reply;
+  return COMPANY_FIRST_IDS.has(rule.id) ? reply + COMPANY_FIRST_NOTE : reply;
 }
