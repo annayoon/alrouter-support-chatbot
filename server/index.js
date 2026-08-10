@@ -219,6 +219,13 @@ app.post('/api/chat', rateLimit, async (req, res) => {
           history: session.history,
           userMessage: safeMessage,
         });
+        // The model can also decide it has no answer (its system prompt tells
+        // it to say so) — that's an escalation too, so ask for an email there
+        // as well, unless the customer already left one.
+        if (detectNoAnswer(reply) && !session.awaitingContact && !session.contact) {
+          session.awaitingContact = true;
+          reply += ' 답변받으실 이메일 주소를 남겨주시면 이메일로 안내드리겠습니다.';
+        }
       }
     }
 
