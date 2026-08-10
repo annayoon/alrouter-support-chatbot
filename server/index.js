@@ -7,6 +7,7 @@ import { AlertReason, sendAlert, isAlertingConfigured } from './alerts.js';
 import { detectHumanRequest, detectNegativeSentiment, detectNoAnswer } from './detect.js';
 import { matchTopicRule, resolveTopicReply } from './topicRules.js';
 import { containsBannedWord, maskSensitiveInfo } from './moderation.js';
+import { matchGuideLink } from './guideLinks.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -230,6 +231,13 @@ app.post('/api/chat', rateLimit, async (req, res) => {
           } else if (!session.awaitingContact && !session.contact) {
             session.awaitingContact = true;
             reply += ' 답변받으실 이메일 주소를 남겨주시면 이메일로 안내드리겠습니다.';
+          }
+        } else {
+          // Real answer given — point to the public guide page when the topic
+          // has one, so the customer can follow the full walkthrough.
+          const guide = matchGuideLink(`${safeMessage} ${searchQuery}`);
+          if (guide) {
+            reply += `\n\n📖 ${guide.label}\n${guide.url}`;
           }
         }
       }

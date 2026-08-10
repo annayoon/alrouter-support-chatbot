@@ -93,6 +93,8 @@
       .msg.user .bubble { background: #4f46e5; color: #fff; }
       .msg.bot .bubble { background: #f1f1f4; color: #111; }
       .bubble { display: inline-block; padding: 8px 12px; border-radius: 12px; max-width: 85%; }
+      .bubble a { color: #4f46e5; text-decoration: underline; word-break: break-all; }
+      .msg.user .bubble a { color: #fff; }
       .input-row { display: flex; border-top: 1px solid #eee; padding: 8px; }
       .input-row input {
         flex: 1; border: 1px solid #ddd; border-radius: 8px; padding: 8px 10px; font-size: 14px;
@@ -129,12 +131,31 @@
     }
   });
 
+  const URL_RE = /https?:\/\/[^\s]+/g;
+
+  // Renders text with URLs as clickable links, building DOM nodes (never
+  // innerHTML) so message content can't inject markup.
+  function appendLinkified(el, text) {
+    let last = 0;
+    for (const match of text.matchAll(URL_RE)) {
+      el.appendChild(document.createTextNode(text.slice(last, match.index)));
+      const a = document.createElement('a');
+      a.href = match[0];
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = match[0];
+      el.appendChild(a);
+      last = match.index + match[0].length;
+    }
+    el.appendChild(document.createTextNode(text.slice(last)));
+  }
+
   function renderMessage(role, text) {
     const row = document.createElement('div');
     row.className = `msg ${role}`;
     const bubble = document.createElement('span');
     bubble.className = 'bubble';
-    bubble.textContent = text;
+    appendLinkified(bubble, text);
     row.appendChild(bubble);
     messagesEl.appendChild(row);
     messagesEl.scrollTop = messagesEl.scrollHeight;
