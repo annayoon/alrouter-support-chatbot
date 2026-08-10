@@ -30,6 +30,18 @@ export const TOPIC_RULES = [
     reply: 'AlRouter.ai는 공급사 공식 가격 대비 더 저렴한 가격으로 제공하고 있습니다. 구체적인 할인율은 support@alrouter.ai로 문의해주시면 안내드리겠습니다.',
   },
   {
+    // Login answers must never come from the KB — internal docs (hands-on
+    // guides with test accounts) were leaking into this answer.
+    id: 'login',
+    keywords: [
+      /로그\s*인/, /로그온/, /가입/, /계정\s*(생성|만들|발급)/,
+      /아이디.{0,6}(비밀번호|비번|암호)/, /비밀번호.{0,6}(분실|찾|재설정|모르)/,
+      /log\s*in/i, /sign\s*(in|up)/i, /create\s*(an?\s*)?account/i, /password\s*reset/i,
+    ],
+    silent: true, // routine how-to — doesn't need a staff alert
+    reply: 'alrouter.ai 우측 상단의 로그인 버튼에서 가입하신 계정으로 로그인하실 수 있습니다. 로그인 ID/PW 정보가 없으시다면 담당자(support@alrouter.ai)에게 문의하여 계정 정보를 받으신 후 로그인해 주세요.',
+  },
+  {
     id: 'pricing',
     keywords: [/가격/, /요금/, /비용/, /얼마/, /플랜/, /pricing/i, /price/i],
     reply: 'AlRouter.ai 가격 안내는 support@alrouter.ai로 문의해주시면 담당자가 확인 후 안내드리겠습니다.',
