@@ -35,7 +35,7 @@ export const TOPIC_RULES = [
     id: 'login',
     keywords: [
       /로그\s*인/, /로그온/, /가입/, /계정\s*(생성|만들|발급)/,
-      /아이디.{0,6}(비밀번호|비번|암호)/, /비밀번호.{0,6}(분실|찾|재설정|모르)/,
+      /아이디.{0,6}(비밀번호|비번|암호)/, /(비밀번호|비번).{0,8}(분실|찾|재설정|모르|잊|까먹)/,
       /log\s*in/i, /sign\s*(in|up)/i, /create\s*(an?\s*)?account/i, /password\s*reset/i,
     ],
     silent: true, // routine how-to — doesn't need a staff alert
@@ -43,7 +43,8 @@ export const TOPIC_RULES = [
   },
   {
     id: 'pricing',
-    keywords: [/가격/, /요금/, /비용/, /얼마/, /플랜/, /pricing/i, /price/i],
+    // /얼마(?!나)/: "얼마인가요" should match but "얼마나 걸려요" (duration) shouldn't.
+    keywords: [/가격/, /요금/, /비용/, /얼마(?!나)/, /플랜/, /pricing/i, /price/i],
     reply: 'AlRouter.ai 가격 안내는 support@alrouter.ai로 문의해주시면 담당자가 확인 후 안내드리겠습니다.',
   },
   {
@@ -79,7 +80,7 @@ export const TOPIC_RULES = [
   {
     id: 'service-outage',
     // Bare /다운/ would also match "다운로드" (download), so require it near "서비스".
-    keywords: [/장애/, /서비스.{0,15}(다운|중단)/, /오류\s*(신고|접수)/, /service\s*(down|outage)/i],
+    keywords: [/장애/, /서비스.{0,15}(다운(?!로드)|중단)/, /오류\s*(신고|접수)/, /service\s*(down|outage)/i],
     reply: '서비스 장애나 오류는 support@alrouter.ai로 발생 시각과 증상을 함께 알려주시면 신속히 확인하겠습니다.',
   },
   {
