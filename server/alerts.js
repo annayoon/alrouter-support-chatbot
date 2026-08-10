@@ -88,6 +88,7 @@ export const AlertReason = {
   SESSION_SUMMARY: 'session_summary',
   TOPIC_RULE_MATCHED: 'topic_rule_matched',
   INAPPROPRIATE_LANGUAGE: 'inappropriate_language',
+  CONTACT_PROVIDED: 'contact_provided',
 };
 
 const TITLES = {
@@ -97,16 +98,29 @@ const TITLES = {
   [AlertReason.SESSION_SUMMARY]: '[챗봇] 대화 요약',
   [AlertReason.TOPIC_RULE_MATCHED]: '[챗봇] 특정 주제 문의 (가격 등)',
   [AlertReason.INAPPROPRIATE_LANGUAGE]: '[챗봇] 부적절한 언어 감지',
+  [AlertReason.CONTACT_PROVIDED]: '[챗봇] 고객 연락처 접수 (회신 필요)',
 };
 
-export async function sendAlert(reason, { sessionId, userMessage, botReply, summary }) {
+const ROLE_LABELS = { user: '고객', assistant: '챗봇' };
+
+export async function sendAlert(reason, { sessionId, userMessage, botReply, summary, contact, recentHistory }) {
   const title = TITLES[reason] || '[챗봇] 알림';
   const lines = [
     `세션: ${sessionId}`,
+    contact ? `연락처: ${contact}` : null,
     userMessage ? `고객 메시지: ${userMessage}` : null,
     botReply ? `챗봇 응답: ${botReply}` : null,
     summary ? `요약: ${summary}` : null,
   ].filter(Boolean);
+
+  // Recent turns give staff enough context to act on the alert without having
+  // to ask the customer to repeat themselves.
+  if (recentHistory?.length) {
+    lines.push('최근 대화:');
+    for (const turn of recentHistory) {
+      lines.push(`  ${ROLE_LABELS[turn.role] || turn.role}: ${turn.content}`);
+    }
+  }
 
   await notify(title, lines);
 }

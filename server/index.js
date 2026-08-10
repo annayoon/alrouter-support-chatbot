@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import { randomUUID } from 'node:crypto';
 import { getKnowledgeBaseChunks, selectRelevantChunks, formatChunks, isConfluenceConfigured } from './confluence.js';
-import { buildSystemPrompt, getChatReply, summarizeConversation } from './ollama.js';
+import { buildSystemPrompt, getChatReply, summarizeConversation, rewriteQuery } from './ollama.js';
 import { AlertReason, sendAlert, isAlertingConfigured } from './alerts.js';
 import { detectHumanRequest, detectNegativeSentiment, detectNoAnswer } from './detect.js';
 import { matchTopicRule, resolveTopicReply } from './topicRules.js';
@@ -12,7 +12,12 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '127.0.0.1';
 
-const NO_MATCH_REPLY = '문의하신 내용은 정확한 답변을 위해 담당자에게 전달했습니다. 확인 후 안내드리겠습니다.';
+const NO_MATCH_REPLY = '문의하신 내용은 정확한 답변을 위해 담당자에게 전달했습니다. 확인 후 안내드리겠습니다. 답변받으실 이메일 주소를 남겨주시면 이메일로 안내드리겠습니다.';
+// One round of narrowing before giving up: a vague follow-up often just needs
+// clarification before retrieval can find the right document.
+const CLARIFY_REPLY = '정확한 안내를 위해 조금 더 알려주시겠어요? 어떤 기능이나 화면에서 겪고 계신 문제인지 말씀해주시면 바로 확인해드리겠습니다.';
+const CONTACT_THANKS_REPLY = '감사합니다. 담당자가 확인 후 남겨주신 이메일로 안내드리겠습니다.';
+const EMAIL_RE = /[\w.+-]+@[\w-]+\.[\w.-]+/;
 const BANNED_WORD_REPLY = '부적절한 표현이 감지되어 답변을 드릴 수 없습니다. 정중한 표현으로 다시 문의해주세요.';
 
 const ALLOWED_ORIGINS = (process.env.CORS_ALLOWED_ORIGINS || '')
@@ -49,7 +54,14 @@ const pendingEndTimers = new Map();
 
 function getSession(sessionId) {
   if (!sessions.has(sessionId)) {
-    sessions.set(sessionId, { history: [], alerted: new Set(), lastActiveAt: Date.now() });
+    sessions.set(sessionId, {
+      history: [],
+      alerted: new Set(),
+      lastActiveAt: Date.now(),
+      askedClarification: false,
+      awaitingContact: false,
+      contact: null,
+    });
   }
   const session = sessions.get(sessionId);
   session.lastActiveAt = Date.now();
@@ -155,28 +167,59 @@ app.post('/api/chat', rateLimit, async (req, res) => {
       return res.json({ sessionId, reply });
     }
 
+    // After an escalation the bot asked for an email address — capture it,
+    // notify staff with full context, and skip the LLM entirely.
+    if (session.awaitingContact) {
+      const email = safeMessage.match(EMAIL_RE)?.[0];
+      if (email) {
+        session.awaitingContact = false;
+        session.contact = email;
+        const reply = CONTACT_THANKS_REPLY;
+        session.history.push({ role: 'user', content: safeMessage });
+        session.history.push({ role: 'assistant', content: reply });
+        await sendAlert(AlertReason.CONTACT_PROVIDED, {
+          sessionId,
+          contact: email,
+          recentHistory: session.history.slice(-8),
+        });
+        return res.json({ sessionId, reply });
+      }
+      // Not an email — the customer moved on; handle the message normally.
+    }
+
     const topicRule = matchTopicRule(safeMessage);
 
     let reply;
     let noKnowledgeMatch = false;
+    let clarifying = false;
 
     if (topicRule) {
       // Fixed, guaranteed answer for sensitive topics (pricing, etc.) — never let the model improvise here.
       reply = resolveTopicReply(topicRule, safeMessage);
     } else {
       const allChunks = await getKnowledgeBaseChunks();
-      const relevantChunks = await selectRelevantChunks(allChunks, safeMessage);
+      // Follow-ups like "어떻게 해야 하나요?" carry no searchable keywords on
+      // their own — rewrite them into standalone questions using the history.
+      const searchQuery = await rewriteQuery(session.history, safeMessage);
+      const relevantChunks = await selectRelevantChunks(allChunks, searchQuery);
 
       // KB is set up but nothing matches this question — don't let the model guess, answer deterministically.
       noKnowledgeMatch = isConfluenceConfigured() && relevantChunks.length === 0;
 
-      reply = noKnowledgeMatch
-        ? NO_MATCH_REPLY
-        : await getChatReply({
-            systemPrompt: buildSystemPrompt(formatChunks(relevantChunks)),
-            history: session.history,
-            userMessage: safeMessage,
-          });
+      if (noKnowledgeMatch && !session.askedClarification) {
+        session.askedClarification = true;
+        clarifying = true;
+        reply = CLARIFY_REPLY;
+      } else if (noKnowledgeMatch) {
+        session.awaitingContact = true;
+        reply = NO_MATCH_REPLY;
+      } else {
+        reply = await getChatReply({
+          systemPrompt: buildSystemPrompt(formatChunks(relevantChunks)),
+          history: session.history,
+          userMessage: safeMessage,
+        });
+      }
     }
 
     session.history.push({ role: 'user', content: safeMessage });
@@ -188,14 +231,17 @@ app.post('/api/chat', rateLimit, async (req, res) => {
     if (topicRule && !topicRule.silent) {
       await maybeAlert(session, sessionId, AlertReason.TOPIC_RULE_MATCHED, { userMessage: safeMessage, botReply: reply });
     }
+    const alertContext = { contact: session.contact, recentHistory: session.history.slice(-8) };
     if (detectHumanRequest(safeMessage)) {
-      await maybeAlert(session, sessionId, AlertReason.HUMAN_REQUESTED, { userMessage: safeMessage, botReply: reply });
+      await maybeAlert(session, sessionId, AlertReason.HUMAN_REQUESTED, { userMessage: safeMessage, botReply: reply, ...alertContext });
     }
     if (detectNegativeSentiment(safeMessage)) {
-      await maybeAlert(session, sessionId, AlertReason.NEGATIVE_SENTIMENT, { userMessage: safeMessage, botReply: reply });
+      await maybeAlert(session, sessionId, AlertReason.NEGATIVE_SENTIMENT, { userMessage: safeMessage, botReply: reply, ...alertContext });
     }
-    if (noKnowledgeMatch || detectNoAnswer(reply)) {
-      await maybeAlert(session, sessionId, AlertReason.NO_ANSWER, { userMessage: safeMessage, botReply: reply });
+    // While clarifying, no alert yet — staff only hears about it if the
+    // clarified question still has no answer.
+    if ((noKnowledgeMatch && !clarifying) || (!clarifying && detectNoAnswer(reply))) {
+      await maybeAlert(session, sessionId, AlertReason.NO_ANSWER, { userMessage: safeMessage, botReply: reply, ...alertContext });
     }
 
     res.json({ sessionId, reply });

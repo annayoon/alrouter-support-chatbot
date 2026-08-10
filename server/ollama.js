@@ -1,6 +1,9 @@
 const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://localhost:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.2';
 const OLLAMA_EMBED_MODEL = process.env.OLLAMA_EMBED_MODEL || 'bge-m3';
+// Query rewriting is a small, latency-sensitive task — a lightweight model can
+// handle it. Falls back to the main chat model unless overridden.
+const OLLAMA_REWRITE_MODEL = process.env.OLLAMA_REWRITE_MODEL || process.env.OLLAMA_MODEL || 'llama3.2';
 
 // Low temperature: support answers must be consistent and stick to the KB,
 // not creative. num_ctx raised from the 2048 default so KB chunks + history fit.
@@ -13,11 +16,11 @@ const CHAT_OPTIONS = {
 // generation and dilute the system prompt's influence on small local models.
 const MAX_HISTORY_MESSAGES = 8;
 
-async function chatCompletion(messages) {
+async function chatCompletion(messages, model = OLLAMA_MODEL) {
   const res = await fetch(`${OLLAMA_HOST}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: OLLAMA_MODEL, messages, stream: false, options: CHAT_OPTIONS }),
+    body: JSON.stringify({ model, messages, stream: false, options: CHAT_OPTIONS }),
   });
 
   if (!res.ok) {
@@ -77,6 +80,34 @@ export function buildSystemPrompt(kbContext) {
     : '--- 참고 문서 ---\n(없음 — 참고 문서에 없는 질문은 위 규칙대로 담당자 전달 안내만 한다)';
 
   return rules.join('\n') + '\n\n' + FEW_SHOT_EXAMPLES + '\n\n' + context;
+}
+
+// Rewrites a follow-up message ("어떻게 해야 하나요?") into a standalone question
+// usable for KB retrieval, using recent conversation context. Returns the
+// original message on the first turn or if rewriting fails.
+export async function rewriteQuery(history, userMessage) {
+  if (history.length === 0) return userMessage;
+  try {
+    const messages = [
+      {
+        role: 'system',
+        content: [
+          '너는 검색 질의 재작성기다. 아래 고객센터 대화의 마지막 고객 메시지를,',
+          '대화 맥락을 반영한 독립적으로 이해 가능한 한국어 질문 한 문장으로 다시 써라.',
+          '이미 독립적인 질문이면 그대로 출력한다. 질문 한 문장만 출력하고 설명·따옴표를 붙이지 않는다.',
+        ].join('\n'),
+      },
+      ...history.slice(-6),
+      { role: 'user', content: `마지막 고객 메시지: ${userMessage}` },
+    ];
+    const rewritten = await chatCompletion(messages, OLLAMA_REWRITE_MODEL);
+    // Guard against the model rambling: a valid rewrite is one short line.
+    if (rewritten && !rewritten.includes('\n') && rewritten.length <= 200) return rewritten;
+    return userMessage;
+  } catch (err) {
+    console.error('[ollama] query rewrite failed:', err.message);
+    return userMessage;
+  }
 }
 
 export async function getChatReply({ systemPrompt, history, userMessage }) {
