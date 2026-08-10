@@ -30,13 +30,24 @@ export const TOPIC_RULES = [
     reply: 'AlRouter.ai는 공급사 공식 가격 대비 더 저렴한 가격으로 제공하고 있습니다. 구체적인 할인율은 support@alrouter.ai로 문의해주시면 안내드리겠습니다.',
   },
   {
+    // Must come before 'login' — password questions would otherwise fall into
+    // the generic login answer.
+    id: 'password-reset',
+    keywords: [
+      /(비밀번호|비번|암호).{0,8}(분실|찾|재설정|변경|모르|잊|까먹)/,
+      /password.{0,10}(reset|forgot|lost|change)/i, /forgot.{0,10}password/i,
+    ],
+    silent: true, // routine how-to — doesn't need a staff alert
+    reply: "비밀번호를 잊으셨다면 로그인 화면의 '비밀번호를 잊으셨나요?' 링크를 통해 재설정하실 수 있습니다. 재설정이 어려우시면 소속 회사의 AlRouter 담당자에게 문의해 주세요.",
+  },
+  {
     // Login answers must never come from the KB — internal docs (hands-on
     // guides with test accounts) were leaking into this answer.
     id: 'login',
     keywords: [
       /로그\s*인/, /로그온/, /가입/, /계정\s*(생성|만들|발급)/,
-      /아이디.{0,6}(비밀번호|비번|암호)/, /(비밀번호|비번).{0,8}(분실|찾|재설정|모르|잊|까먹)/,
-      /log\s*in/i, /sign\s*(in|up)/i, /create\s*(an?\s*)?account/i, /password\s*reset/i,
+      /아이디.{0,6}(비밀번호|비번|암호)/,
+      /log\s*in/i, /sign\s*(in|up)/i, /create\s*(an?\s*)?account/i,
     ],
     silent: true, // routine how-to — doesn't need a staff alert
     reply: 'alrouter.ai 우측 상단의 로그인 버튼에서 가입하신 계정으로 로그인하실 수 있습니다. 로그인 ID/PW 정보가 없으시다면 소속 회사의 AlRouter 담당자에게 문의하여 계정 정보를 받으신 후 로그인해 주세요.',
